@@ -19,6 +19,9 @@ namespace OpenHardwareMonitor.Utilities
         {
             public bool Enabled { get; set; }
             public string Code { get; set; }
+
+            [NonSerialized()]
+            public string LastReason;
         }
 
         public struct ScriptOutput
@@ -140,16 +143,25 @@ namespace OpenHardwareMonitor.Utilities
             }
         }
 
+        public string GetReason(Identifier identifier)
+        {
+            if (!codeMap.ContainsKey(identifier.ToString()))
+                return string.Empty;
+
+            return codeMap[identifier.ToString()].LastReason;
+        }
+
         public void ExecuteScripts(IComputer computer)
         {
             foreach (var scKeyValue in codeMap)
             {
-                if (codeMap[scKeyValue.Key].Enabled)
+                if (scKeyValue.Value.Enabled)
                 {
                     if (!codeCache.ContainsKey(scKeyValue.Key))
                         codeCache[scKeyValue.Key] = CSScript.CreateFunc<ScriptOutput>(scKeyValue.Value.Code);
 
                     ScriptOutput output = codeCache[scKeyValue.Key](computer);
+                    scKeyValue.Value.LastReason = output.Reason;
 
                     IControl control = findControl(computer, scKeyValue.Key.ToString());
                     switch (output.ControlMode)
@@ -174,7 +186,9 @@ namespace OpenHardwareMonitor.Utilities
 
         public void DisableScript(Identifier identifier)
         {
-            codeMap[identifier.ToString()].Enabled = false;
+            ScriptItem scriptItem = codeMap[identifier.ToString()];
+            scriptItem.Enabled = false;
+            scriptItem.LastReason = null;
         }
 
         private IControl findControl(IComputer computer, string identifier)

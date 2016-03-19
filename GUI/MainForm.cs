@@ -49,6 +49,7 @@ namespace OpenHardwareMonitor.GUI
         private UserOption showValue;
         private UserOption showMin;
         private UserOption showMax;
+        private UserOption showReason;
         private UserOption startMinimized;
         private UserOption minimizeToTray;
         private UserOption minimizeOnClose;
@@ -205,6 +206,12 @@ namespace OpenHardwareMonitor.GUI
             showMax.Changed += delegate (object sender, EventArgs e)
             {
                 treeView.Columns[3].IsVisible = showMax.Value;
+            };
+
+            showReason = new UserOption("reasonItem", true, reasonMenuItem, settings);
+            showReason.Changed += delegate (object sender, EventArgs e)
+            {
+                treeView.Columns[4].IsVisible = showReason.Value;
             };
 
             startMinimized = new UserOption("startMinMenuItem", false,
