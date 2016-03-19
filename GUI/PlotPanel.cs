@@ -8,16 +8,19 @@
 	
 */
 
+extern alias OP;
+extern alias OPWinForms;
+
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using OpenHardwareMonitor.Hardware;
-using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.WindowsForms;
-using OxyPlot.Series;
+using OP::OxyPlot;
+using OP::OxyPlot.Axes;
+using OPWinForms::OxyPlot.WindowsForms;
+using OP::OxyPlot.Series;
 using OpenHardwareMonitor.Collections;
 
 namespace OpenHardwareMonitor.GUI {
