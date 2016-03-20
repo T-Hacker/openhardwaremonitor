@@ -31,22 +31,51 @@ namespace OpenHardwareMonitor.GUI
         public ScriptForm()
         {
             InitializeComponent();
+
+            richTextBox1.Text = @"
+using System.Windows.Forms;
+
+using OpenHardwareMonitor.Hardware;
+using OpenHardwareMonitor.Utilities;
+
+ScriptManager.ScriptOutput  calculateFanSpeed(IComputer computer)
+{
+    ScriptManager.ScriptOutput output;
+    output.ControlMode = ControlMode.Software;
+    output.FanSpeed = 100.0f;
+    output.Reason = ""Default script!"";
+
+    return output;
+}";
         }
 
         private void checkButton_Click(object sender, EventArgs e)
         {
-            string err;
-            if (!ScriptManager.Instance.TryCompileScript(richTextBox1.Text, out err))
-            {
-                MessageBox.Show(err, "Fail to compile!", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            else
-                CheckButton.Enabled = false;
+            testScript();
         }
 
         private void richTextBox1_TextChanged(object sender, EventArgs e)
         {
             CheckButton.Enabled = true;
+        }
+
+        private void enableCheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            if (enableCheckBox.CheckState == CheckState.Checked)
+                testScript();
+        }
+
+        private void testScript()
+        {
+            string err;
+            if (!ScriptManager.Instance.TryCompileScript(richTextBox1.Text, out err))
+            {
+                MessageBox.Show(err, "Fail to compile!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                enableCheckBox.CheckState = CheckState.Unchecked;
+            }
+            else
+                CheckButton.Enabled = false;
         }
     }
 }

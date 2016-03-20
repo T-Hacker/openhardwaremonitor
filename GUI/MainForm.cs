@@ -365,13 +365,16 @@ namespace OpenHardwareMonitor.GUI
             // Make sure the settings are saved when the user logs off
             Microsoft.Win32.SystemEvents.SessionEnded += delegate
             {
+                ScriptManager.Instance.Close();
+
                 computer.Close();
                 SaveConfiguration();
                 if (runWebServer.Value)
                     server.Quit();
             };
 
-            ScriptManager.Instance.LoadSettings(settings, computer);
+            ScriptManager.Instance.Computer = computer;
+            ScriptManager.Instance.LoadSettings(settings);
         }
 
         private void InitializePlotForm()
@@ -640,7 +643,7 @@ namespace OpenHardwareMonitor.GUI
             if (delayCount < 4)
                 delayCount++;
 
-            ScriptManager.Instance.ExecuteScripts(computer);
+            ScriptManager.Instance.ExecuteScripts();
         }
 
         private void SaveConfiguration()
@@ -707,6 +710,8 @@ namespace OpenHardwareMonitor.GUI
 
         private void MainForm_FormClosed(object sender, FormClosedEventArgs e)
         {
+            ScriptManager.Instance.Close();
+
             Visible = false;
             systemTray.IsMainIconEnabled = false;
             timer.Enabled = false;

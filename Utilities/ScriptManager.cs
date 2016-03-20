@@ -32,7 +32,7 @@ namespace OpenHardwareMonitor.Utilities
         }
 
         private static ScriptManager instance = null;
-        
+
         private Dictionary<string, ScriptItem> codeMap = new Dictionary<string, ScriptItem>();
         private Dictionary<string, MethodDelegate<ScriptOutput>> codeCache = new Dictionary<string, MethodDelegate<ScriptOutput>>();
 
@@ -46,6 +46,8 @@ namespace OpenHardwareMonitor.Utilities
                 return instance;
             }
         }
+
+        public IComputer Computer { get; set; }
 
         private ScriptManager()
         {
@@ -104,11 +106,11 @@ namespace OpenHardwareMonitor.Utilities
             return (codeMap.ContainsKey(identifierStr) && codeMap[identifierStr].Enabled);
         }
 
-        public void LoadSettings(ISettings settings, IComputer computer)
+        public void LoadSettings(ISettings settings)
         {
             XmlSerializer serializer = new XmlSerializer(typeof(ScriptItem));
 
-            foreach (var device in computer.Hardware)
+            foreach (var device in Computer.Hardware)
             {
                 foreach (var subDevice in device.SubHardware)
                 {
@@ -122,7 +124,7 @@ namespace OpenHardwareMonitor.Utilities
                             ScriptItem scriptItem = serializer.Deserialize(sr) as ScriptItem;
                             if (scriptItem != null)
                                 codeMap[identifierStr] = scriptItem;
-                        }                            
+                        }
                     }
                 }
             }
@@ -151,19 +153,30 @@ namespace OpenHardwareMonitor.Utilities
             return codeMap[identifier.ToString()].LastReason;
         }
 
-        public void ExecuteScripts(IComputer computer)
+        public void ExecuteScripts()
         {
             foreach (var scKeyValue in codeMap)
             {
                 if (scKeyValue.Value.Enabled)
                 {
-                    if (!codeCache.ContainsKey(scKeyValue.Key))
-                        codeCache[scKeyValue.Key] = CSScript.CreateFunc<ScriptOutput>(scKeyValue.Value.Code);
+                    ScriptOutput output;
+                    try
+                    {
+                        if (!codeCache.ContainsKey(scKeyValue.Key))
+                            codeCache[scKeyValue.Key] = CSScript.CreateFunc<ScriptOutput>(scKeyValue.Value.Code);
 
-                    ScriptOutput output = codeCache[scKeyValue.Key](computer);
+                        output = codeCache[scKeyValue.Key](Computer);
+                    }
+                    catch (Exception e)
+                    {
+                        output.ControlMode = ControlMode.Software;
+                        output.FanSpeed = 100.0f;
+                        output.Reason = "ERROR: " + e.Message;
+                    }
+
                     scKeyValue.Value.LastReason = output.Reason;
 
-                    IControl control = findControl(computer, scKeyValue.Key.ToString());
+                    IControl control = findControl(scKeyValue.Key.ToString());
                     switch (output.ControlMode)
                     {
                         case ControlMode.Undefined:
@@ -186,27 +199,71 @@ namespace OpenHardwareMonitor.Utilities
 
         public void DisableScript(Identifier identifier)
         {
+            if (!codeMap.ContainsKey(identifier.ToString()))
+                return;
+
             ScriptItem scriptItem = codeMap[identifier.ToString()];
             scriptItem.Enabled = false;
             scriptItem.LastReason = null;
         }
 
-        private IControl findControl(IComputer computer, string identifier)
+        public IControl FindControlByName(string name)
         {
-            foreach (var device in computer.Hardware)
+            return (from d in Computer.Hardware
+                    from sd in d.SubHardware
+                    from s in sd.Sensors
+                    where s.Name.Equals(name)
+                    select s.Control).SingleOrDefault();
+        }
+
+        public ISensor FindSensorByName(string name)
+        {
+            return FindSensorByName(name, null);
+        }
+
+        public ISensor FindSensorByName(string name, IHardware[] hardware)
+        {
+            if (hardware == null)
+                hardware = Computer.Hardware;
+
+            foreach (var d in hardware)
             {
-                foreach (var subDevice in device.SubHardware)
+                foreach (var s in d.Sensors)
                 {
-                    foreach (var sensor in subDevice.Sensors)
-                    {
-                        string identifierStr = sensor.Control.Identifier.ToString();
-                        if (identifierStr.Equals(identifier, StringComparison.Ordinal))
-                            return sensor.Control;
-                    }
+                    if (s.Name.Equals(name, StringComparison.Ordinal))
+                        return s;
                 }
+
+                if (d.SubHardware != null)
+                {
+                    ISensor sensor = FindSensorByName(name, d.SubHardware);
+                    if (sensor != null)
+                        return sensor;
+                }   
             }
 
             return null;
+        }
+
+        private IControl findControl(string identifier)
+        {
+            return (from d in Computer.Hardware
+                    from sd in d.SubHardware
+                    from s in sd.Sensors
+                    where s.Control != null && s.Control.Identifier.ToString().Equals(identifier, StringComparison.Ordinal)
+                    select s.Control).SingleOrDefault();
+        }
+
+        public void Close()
+        {
+            foreach (var keyValue in codeMap)
+            {
+                if (keyValue.Value.Enabled)
+                {
+                    IControl control = findControl(keyValue.Key);
+                    control.SetSoftware(100.0f);
+                }
+            }
         }
     }
 }
