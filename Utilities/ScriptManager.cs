@@ -10,11 +10,12 @@ using System.Diagnostics;
 using System.Xml.Serialization;
 using System.IO;
 using System.Xml;
+using System.Reflection;
 
 namespace OpenHardwareMonitor.Utilities
 {
     public class ScriptManager
-    {
+    {     
         public class ScriptItem
         {
             public bool Enabled { get; set; }
@@ -31,10 +32,15 @@ namespace OpenHardwareMonitor.Utilities
             public string Reason;
         }
 
+        public interface IFanControlScript
+        {
+            ScriptOutput CalculateFanSpeed(IComputer computer);
+        }
+
         private static ScriptManager instance = null;
 
         private Dictionary<string, ScriptItem> codeMap = new Dictionary<string, ScriptItem>();
-        private Dictionary<string, MethodDelegate<ScriptOutput>> codeCache = new Dictionary<string, MethodDelegate<ScriptOutput>>();
+        private Dictionary<string, IFanControlScript> codeCache = new Dictionary<string, IFanControlScript>();
 
         public static ScriptManager Instance
         {
@@ -59,7 +65,7 @@ namespace OpenHardwareMonitor.Utilities
             string identifierStr = control.Identifier.ToString();
 
             if (scriptItem.Enabled)
-                codeCache[identifierStr] = CSScript.CreateFunc<ScriptOutput>(scriptItem.Code);
+                codeCache[identifierStr] = createObjectFromScriptCode(scriptItem.Code);
 
             codeMap[identifierStr] = scriptItem;
         }
@@ -85,7 +91,9 @@ namespace OpenHardwareMonitor.Utilities
         {
             try
             {
-                CSScript.CreateFunc<ScriptOutput>(code);
+                IFanControlScript fanControl = createObjectFromScriptCode(code);
+
+                fanControl.CalculateFanSpeed(Computer);
             }
             catch (Exception e)
             {
@@ -163,9 +171,9 @@ namespace OpenHardwareMonitor.Utilities
                     try
                     {
                         if (!codeCache.ContainsKey(scKeyValue.Key))
-                            codeCache[scKeyValue.Key] = CSScript.CreateFunc<ScriptOutput>(scKeyValue.Value.Code);
+                            codeCache[scKeyValue.Key] = createObjectFromScriptCode(scKeyValue.Value.Code);
 
-                        output = codeCache[scKeyValue.Key](Computer);
+                        output = codeCache[scKeyValue.Key].CalculateFanSpeed(Computer);
                     }
                     catch (Exception e)
                     {
@@ -207,21 +215,21 @@ namespace OpenHardwareMonitor.Utilities
             scriptItem.LastReason = null;
         }
 
-        public IControl FindControlByName(string name)
+        //public IControl FindControlByName(string name)
+        //{
+        //    return (from d in Computer.Hardware
+        //            from sd in d.SubHardware
+        //            from s in sd.Sensors
+        //            where s.Name.Equals(name)
+        //            select s.Control).SingleOrDefault();
+        //}
+
+        public ISensor FindSensorByName(string name, SensorType? sensorType)
         {
-            return (from d in Computer.Hardware
-                    from sd in d.SubHardware
-                    from s in sd.Sensors
-                    where s.Name.Equals(name)
-                    select s.Control).SingleOrDefault();
+            return FindSensorByName(name, sensorType, null);
         }
 
-        public ISensor FindSensorByName(string name)
-        {
-            return FindSensorByName(name, null);
-        }
-
-        public ISensor FindSensorByName(string name, IHardware[] hardware)
+        public ISensor FindSensorByName(string name, SensorType? sensorType, IHardware[] hardware)
         {
             if (hardware == null)
                 hardware = Computer.Hardware;
@@ -230,13 +238,16 @@ namespace OpenHardwareMonitor.Utilities
             {
                 foreach (var s in d.Sensors)
                 {
+                    if (sensorType.HasValue && sensorType.Value != s.SensorType)
+                        continue;
+
                     if (s.Name.Equals(name, StringComparison.Ordinal))
                         return s;
                 }
 
                 if (d.SubHardware != null)
                 {
-                    ISensor sensor = FindSensorByName(name, d.SubHardware);
+                    ISensor sensor = FindSensorByName(name, sensorType, d.SubHardware);
                     if (sensor != null)
                         return sensor;
                 }   
@@ -252,6 +263,13 @@ namespace OpenHardwareMonitor.Utilities
                     from s in sd.Sensors
                     where s.Control != null && s.Control.Identifier.ToString().Equals(identifier, StringComparison.Ordinal)
                     select s.Control).SingleOrDefault();
+        }
+
+        private IFanControlScript createObjectFromScriptCode(string code)
+        {
+            Assembly scriptAssembly = CSScript.LoadCode(code);
+
+            return (IFanControlScript)scriptAssembly.CreateInstance("FanControl");
         }
 
         public void Close()
