@@ -33,20 +33,28 @@ namespace OpenHardwareMonitor.GUI
             InitializeComponent();
 
             richTextBox1.Text = @"
-using System.Windows.Forms;
+//####################################################################
+// <Script Name>
+//####################################################################
+using System;
 
 using OpenHardwareMonitor.Hardware;
 using OpenHardwareMonitor.Utilities;
 
-ScriptManager.ScriptOutput  calculateFanSpeed(IComputer computer)
+public class FanControl : ScriptManager.IFanControlScript
 {
-    ScriptManager.ScriptOutput output;
-    output.ControlMode = ControlMode.Software;
-    output.FanSpeed = 100.0f;
-    output.Reason = ""Default script!"";
+	public ScriptManager.ScriptOutput CalculateFanSpeed(IComputer computer)
+	{
+		ScriptManager.ScriptOutput output;
+		output.ControlMode = ControlMode.Software;
+		output.FanSpeed = 100.0f;
+		output.Reason = ""Default script active!"";
 
-    return output;
-}";
+
+        return output;
+        }
+    }
+";
         }
 
         private void checkButton_Click(object sender, EventArgs e)

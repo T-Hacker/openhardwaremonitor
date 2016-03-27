@@ -11,11 +11,14 @@ using System.Xml.Serialization;
 using System.IO;
 using System.Xml;
 using System.Reflection;
+using static OpenHardwareMonitor.Utilities.AverageFactory;
 
 namespace OpenHardwareMonitor.Utilities
 {
     public class ScriptManager
-    {     
+    {
+        private Average avg = AverageFactory.GetInstance(0, 0);
+
         public class ScriptItem
         {
             public bool Enabled { get; set; }
